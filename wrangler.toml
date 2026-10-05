@@ -10,7 +10,9 @@ binding = "ASSETS"
 not_found_handling = "single-page-application"
 
 # Cloudflare D1 Database binding
-[[d1_databases]]
-binding = "DB"
-database_name = "savquiz_db"
-database_id = "savquiz_db"
+# Nếu muốn khai báo D1 trực tiếp trong wrangler.toml, hãy thay database_id bằng mã UUID thực tế từ Cloudflare D1.
+# Hoặc bạn có thể liên kết trực tiếp trên Cloudflare Dashboard: Settings -> Bindings -> D1 Database (Variable: DB).
+# [[d1_databases]]
+# binding = "DB"
+# database_name = "savquiz_db"
+# database_id = "YOUR_D1_DATABASE_UUID_HERE"
