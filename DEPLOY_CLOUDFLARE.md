@@ -1,82 +1,57 @@
-# Hướng Dẫn Deploy Savquiz Lên Cloudflare Pages
+# Hướng Dẫn Vận Hành Savquiz 100% Native Trên Cloudflare (Workers + D1 Database)
 
-Tài liệu này hướng dẫn chi tiết cách đưa frontend của **Savquiz (Vite + React + TailwindCSS)** lên **Cloudflare Pages** với hiệu năng CDN toàn cầu và hoàn toàn miễn phí.
-
----
-
-## 1. Cơ Chế Hoạt Động (Kiến Trúc Triển Khai)
-
-- **Frontend (Client):** Triển khai trực tiếp lên **Cloudflare Pages** (CDN cực nhanh, tự động xử lý HTTPS, chống DDoS).
-- **Backend (Server API & SQLite):** Chạy trên một server/VPS hoặc các dịch vụ đám mây hỗ trợ Node.js dài hạn (như **Render**, **Railway**, **Fly.io**, hoặc **VPS riêng**).
-- **Kết nối API:** Frontend giao tiếp với Backend qua biến môi trường `VITE_API_URL`.
+Hệ thống Savquiz hiện tại đã được chuyển đổi toàn diện sang kiến trúc **Cloudflare Serverless**:
+- **Frontend (Giao diện React + TailwindCSS):** Phục vụ qua CDN Static Assets.
+- **Backend (API Logic + Chấm điểm):** Chạy trên **Cloudflare Workers** bằng framework siêu nhẹ **Hono**.
+- **Cơ sở dữ liệu (Database):** Lưu trữ trên **Cloudflare D1 (Serverless SQLite)**.
+- **Lưu trữ file âm thanh/hình ảnh:** Tự động lưu vào D1 Database (bảng `sq_media`) hoặc Cloudflare R2 Bucket.
 
 ---
 
-## 2. Các File Cấu Hình Sẵn Cho Cloudflare Pages
-
-Hệ thống đã được thiết lập sẵn các file phục vụ Cloudflare Pages:
-1. `client/public/_redirects`: Quy tắc rewrite SPA (`/* /index.html 200`) giúp tránh lỗi 404 khi người dùng refresh hoặc truy cập trực tiếp các đường dẫn như `/quizzes`, `/results`, `/login`.
-2. `client/public/_headers`: Cấu hình cache cho static assets và các header bảo mật chuẩn.
-3. `client/src/api/client.ts` & `media.ts`: Tự động nhận biến `VITE_API_URL` để gọi API và load file audio/media.
+## 1. Bản Sao Lưu (Backup)
+Toàn bộ mã nguồn Node.js Fastify + SQLite trước khi chuyển đổi đã được nén an toàn tại:
+`d:\Code\NodeJS\savquiz_backup_fastify.zip`
 
 ---
 
-## 3. Cách 1: Deploy Bằng Giao Diện Cloudflare Dashboard (Khuyên Dùng)
+## 2. Bước Kích Hoạt Database D1 Trên Cloudflare (Chỉ mất 1 phút)
 
-### Bước 1: Kết nối GitHub Repo với Cloudflare Pages
-1. Đăng nhập vào [Cloudflare Dashboard](https://dash.cloudflare.com/).
-2. Chọn menu **Workers & Pages** -> Bấm **Create application** -> Chọn tab **Pages** -> Bấm **Connect to Git**.
-3. Chọn tài khoản GitHub của bạn và chọn repository: `khangninh2005-a11y/savquiz`.
+Để backend có thể lưu trữ dữ liệu, bạn chỉ cần liên kết cơ sở dữ liệu **D1** vào Worker theo 1 trong 2 cách sau:
 
-### Bước 2: Cấu hình Build Settings
-Thiết lập các thông số build như sau:
+### Cách 1: Trên giao diện Web (Cloudflare Dashboard)
+1. Đăng nhập [Cloudflare Dashboard](https://dash.cloudflare.com/).
+2. Ở thanh menu bên trái, vào **Storage & Databases** -> chọn **D1 SQL Database** -> Bấm **Create database**.
+   - Tên database: `savquiz_db`
+   - Bấm **Create**.
+3. Quay lại menu **Workers & Pages** -> Bấm vào tên Worker `savquiz` của bạn:
+   - Vào tab **Settings** -> mục **Bindings** (hoặc **Variables and Secrets**).
+   - Bấm **Add** -> chọn **D1 database binding**:
+     - Variable name: `DB` *(viết hoa 2 chữ cái)*
+     - D1 database: chọn `savquiz_db` vừa tạo.
+   - Bấm **Save and Deploy**.
 
-| Mục | Giá trị cần điền |
-| :--- | :--- |
-| **Project name** | `savquiz` (hoặc tên tuỳ chọn) |
-| **Production branch** | `main` |
-| **Framework preset** | `Vite` (hoặc `None`) |
-| **Root directory (advanced)** | Để trống (hoặc `/`) |
-| **Build command** | `npm run build:client` |
-| **Build output directory** | `client/dist` |
-
-*(Lưu ý: Nếu bạn chọn Root directory là `client`, thì Build command là `npm run build` và Build output directory là `dist`)*.
-
-### Bước 3: Thiết lập Environment Variables (Biến môi trường)
-Bấm vào mục **Environment variables (advanced)** và thêm:
-- `NODE_VERSION`: `20` (hoặc `22`)
-- `VITE_API_URL`: Điền địa chỉ domain backend của bạn (ví dụ: `https://api.yourdomain.com`).  
-  *(Nếu ban đầu chưa có backend riêng, có thể để trống hoặc điền tạm thời)*.
-
-### Bước 4: Deploy
-- Bấm **Save and Deploy**.
-- Cloudflare sẽ tự động kéo code từ GitHub, cài đặt dependencies, build và cung cấp cho bạn một domain miễn phí dạng `https://savquiz-xxx.pages.dev`.
+> **Tự động khởi tạo:** Ngay khi Worker nhận request đầu tiên, hệ thống sẽ tự động chạy lệnh tạo toàn bộ bảng và nạp dữ liệu mẫu ban đầu (Tài khoản Admin: `admin` / `admin`).
 
 ---
 
-## 4. Cách 2: Deploy Bằng Wrangler CLI (Dòng lệnh)
-
-Nếu bạn muốn deploy trực tiếp từ máy tính mà không cần qua GitHub:
-
+### Cách 2: Bằng dòng lệnh (Wrangler CLI)
+Nếu bạn có cài đặt terminal:
 ```bash
-# 1. Cài đặt wrangler nếu chưa có
-npm install -g wrangler
+# 1. Tạo database D1 trên Cloudflare
+npx wrangler d1 create savquiz_db
 
-# 2. Đăng nhập Cloudflare
-wrangler login
+# 2. Khởi tạo bảng và dữ liệu mẫu
+npx wrangler d1 execute savquiz_db --remote --file=d1/schema.sql
 
-# 3. Build mã nguồn client
-npm run build:client
-
-# 4. Deploy thư mục client/dist lên Cloudflare Pages
-wrangler pages deploy client/dist --project-name=savquiz
+# 3. Deploy lại
+npx wrangler deploy
 ```
 
 ---
 
-## 5. Lưu Ý Về Backend (Fastify + SQLite)
+## 3. Tài Khoản Đăng Nhập Mặc Định
 
-Vì Cloudflare Pages là môi trường static CDN cho client, server Node.js Fastify và SQLite cần được host trên môi trường có ổ cứng/container:
-- **Tùy chọn 1 (Miễn phí / Giá rẻ):** Render.com (Web Service), Railway.app, Fly.io.
-- **Tùy chọn 2 (VPS cá nhân):** Thuê VPS Ubuntu (DigitalOcean, Linode, Hetzner, Vietnix...), chạy `pm2 start server/dist/index.js` hoặc Docker.
-- Sau khi có URL backend (ví dụ: `https://api.yourdomain.com`), bạn chỉ cần vào **Cloudflare Pages -> Settings -> Environment Variables** -> Cập nhật `VITE_API_URL = https://api.yourdomain.com` và Redeploy.
+| Tên đăng nhập | Mật khẩu | Quyền hạn |
+| :--- | :--- | :--- |
+| `admin` | `admin` | Quản trị viên (Toàn quyền hệ thống) |
+| `student` | `123456` | Thí sinh / Học sinh |
