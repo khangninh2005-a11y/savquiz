@@ -24,13 +24,10 @@ app.use('*', async (c, next) => {
   if (c.env.DB) {
     await ensureSchema(c.env.DB);
   } else if (c.req.path.startsWith('/api') && c.req.path !== '/api/health') {
-    return c.json(
-      {
-        status: 'failed',
-        message: 'Chưa liên kết cơ sở dữ liệu D1. Vui lòng vào Cloudflare Dashboard -> Workers -> Settings -> Bindings -> Thêm D1 Database với Variable Name là DB.',
-      },
-      500
-    );
+    return c.json({
+      status: 'failed',
+      message: 'Chưa liên kết cơ sở dữ liệu D1. Vui lòng vào Cloudflare Dashboard -> Workers -> Settings -> Bindings -> Thêm D1 Database với Variable Name là DB.',
+    });
   }
   await next();
 });

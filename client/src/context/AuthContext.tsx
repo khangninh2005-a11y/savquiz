@@ -65,7 +65,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
       return { success: false, message: res.message || 'Tài khoản hoặc mật khẩu không chính xác' };
     } catch (err: any) {
-      return { success: false, message: err?.response?.data?.message || 'Không thể kết nối đến máy chủ' };
+      const serverMsg =
+        typeof err?.response?.data === 'string'
+          ? err.response.data
+          : err?.response?.data?.message || err?.message;
+      return { success: false, message: serverMsg || 'Không thể kết nối đến máy chủ' };
     }
   };
 
