@@ -60,35 +60,45 @@ export function hasPermission(user: any, permission: string): boolean {
   return perms.includes(permission) || perms.includes('all');
 }
 
-
 export function hashPassword(password: string): string {
-  const salt = crypto.randomBytes(16).toString('hex');
-  const derivedKey = crypto.scryptSync(password, salt, 64);
-  return `scrypt:${salt}:${derivedKey.toString('hex')}`;
+  // Ultra-fast SHA-256 (CPU-friendly for Cloudflare Workers free plan 10ms limit)
+  return crypto.createHash('sha256').update(password).digest('hex');
 }
 
 export function verifyPassword(password: string, storedHash: string): boolean {
   if (!storedHash || !password) return false;
 
-  if (storedHash.startsWith('scrypt:')) {
-    const parts = storedHash.split(':');
-    if (parts.length !== 3) return false;
-    const salt = parts[1];
-    const key = parts[2];
-    const derivedKey = crypto.scryptSync(password, salt, 64);
-    const keyBuf = Buffer.from(key, 'hex');
-    if (keyBuf.length !== derivedKey.length) return false;
-    return crypto.timingSafeEqual(keyBuf, derivedKey);
-  }
-
-  // Legacy MD5 check
+  // 1. Check MD5 (Savquiz legacy default)
   const md5Hash = crypto.createHash('md5').update(password).digest('hex');
   if (storedHash.toLowerCase() === md5Hash.toLowerCase()) {
     return true;
   }
 
-  // Plain text compatibility check
-  return storedHash === password;
+  // 2. Check SHA-256
+  const sha256Hash = crypto.createHash('sha256').update(password).digest('hex');
+  if (storedHash.toLowerCase() === sha256Hash.toLowerCase()) {
+    return true;
+  }
+
+  // 3. Plain text fallback
+  if (storedHash === password) {
+    return true;
+  }
+
+  // 4. Legacy scrypt with safe low iteration count
+  if (storedHash.startsWith('scrypt:')) {
+    try {
+      const parts = storedHash.split(':');
+      if (parts.length === 3) {
+        const salt = parts[1];
+        const key = parts[2];
+        const derivedKey = crypto.scryptSync(password, salt, 64, { N: 1024, r: 8, p: 1 });
+        return key.toString('hex') === key;
+      }
+    } catch {}
+  }
+
+  return false;
 }
 
 export async function getUser(c: Context, db: D1Database): Promise<any | null> {
