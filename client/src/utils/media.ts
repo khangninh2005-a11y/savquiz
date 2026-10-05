@@ -9,7 +9,10 @@ export function formatMediaUrl(url?: string): string {
   ) {
     return trimmed;
   }
-  return trimmed.startsWith('/') ? trimmed : `/${trimmed}`;
+  const cleanPath = trimmed.startsWith('/') ? trimmed : `/${trimmed}`;
+  const rawBaseUrl = (import.meta.env.VITE_API_URL || '').trim();
+  const baseUrl = rawBaseUrl ? rawBaseUrl.replace(/\/+$/, '') : '';
+  return `${baseUrl}${cleanPath}`;
 }
 
 export function isAudioMedia(url?: string, type?: string): boolean {

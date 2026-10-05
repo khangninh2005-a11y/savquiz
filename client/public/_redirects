@@ -1,0 +1,3 @@
+# Cloudflare Pages Single Page Application (SPA) redirect rule
+# Ensures client-side routes (e.g. /quizzes, /results, /login) resolve to index.html without 404
+/*    /index.html   200

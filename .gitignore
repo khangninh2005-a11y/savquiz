@@ -5,6 +5,7 @@ node_modules/
 dist/
 client/dist/
 server/dist/
+data/uploads/
 
 # SQLite WAL and shared memory temporary files
 *.db-wal
