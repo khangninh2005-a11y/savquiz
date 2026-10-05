@@ -1,0 +1,30 @@
+# Dependencies
+node_modules/
+
+# Production build outputs
+dist/
+client/dist/
+server/dist/
+
+# SQLite WAL and shared memory temporary files
+*.db-wal
+*.db-shm
+*.sqlite-wal
+*.sqlite-shm
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Editor and OS files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
