@@ -1,7 +1,9 @@
 name = "savquiz"
+main = "worker.js"
 compatibility_date = "2024-09-23"
 
 # Cloudflare Workers Static Assets configuration
 [assets]
 directory = "./client/dist"
+binding = "ASSETS"
 not_found_handling = "single-page-application"
