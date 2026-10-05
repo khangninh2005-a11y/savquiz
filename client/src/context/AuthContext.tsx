@@ -12,6 +12,7 @@ interface AuthContextType {
   isStudent: boolean;
   loading: boolean;
   login: (username: string, passworde: string) => Promise<{ success: boolean; message: string }>;
+  updateUser: (updatedData: Partial<User>) => void;
   logout: () => void;
   hasPermission: (permission: string) => boolean;
 }
@@ -73,6 +74,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const updateUser = (updatedData: Partial<User>) => {
+    setUser((prev) => {
+      if (!prev) return null;
+      const updated = { ...prev, ...updatedData };
+      localStorage.setItem('user_data', JSON.stringify(updated));
+      return updated;
+    });
+  };
+
   const logout = () => {
     setUser(null);
     setToken(null);
@@ -107,6 +117,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         isStudent,
         loading,
         login,
+        updateUser,
         logout,
         hasPermission,
       }}

@@ -51,7 +51,7 @@ userRouter.post('/user/add', async (c) => {
   const data = parseBodyData(rawBody);
   const username = String(data.username || '').trim();
   const email = String(data.email || '').trim();
-  const password = data.password || '123456';
+  const password = data.passworde || data.password || '123456';
   const fullName = data.full_name || '';
   const accountTypeId = Number(data.account_type_id) || 2;
   const groupIds = Array.isArray(data['group_id[]'])
@@ -86,57 +86,83 @@ userRouter.post('/user/add', async (c) => {
   });
 });
 
-userRouter.post('/user/update', async (c) => {
+const editUserHandler = async (c: any) => {
   const db = c.env.DB;
   const user = await requireAuth(c, db);
   if (!user) return c.json({ status: 'failed', message: 'Unauthorized' }, 401);
-  if (!hasPermission(user, 'userList')) return c.json({ status: 'failed', message: 'Permission denied' });
 
   const rawBody = await getBody(c);
   const data = parseBodyData(rawBody);
-  const id = Number(data.id || data.uid);
+  const id = Number(data.id || data.uid || rawBody.id || rawBody.uid);
   if (!id) return c.json({ status: 'failed', message: 'User ID is required' });
+
+  const isSelf = Number(user.id) === id;
+  const canManage = hasPermission(user, 'userList') || Number(user.account_type_id) === 1;
+  if (!canManage && !isSelf) {
+    return c.json({ status: 'failed', message: 'Permission denied' });
+  }
 
   const existing = await db.prepare('SELECT id FROM sq_user WHERE id = ? AND trash_status = 0').bind(id).first();
   if (!existing) return c.json({ status: 'failed', message: 'User not found' });
 
-  const email = data.email ? String(data.email).trim() : null;
-  const fullName = data.full_name !== undefined ? data.full_name : null;
-  const accountTypeId = data.account_type_id !== undefined ? Number(data.account_type_id) : null;
-  const groupIds = Array.isArray(data['group_id[]'])
-    ? data['group_id[]'].join(',')
-    : data.group_ids !== undefined
-    ? data.group_ids
-    : null;
-
-  if (email) {
-    const dup = await db.prepare('SELECT id FROM sq_user WHERE email = ? AND id != ? AND trash_status = 0').bind(email, id).first();
-    if (dup) return c.json({ status: 'failed', message: 'Email already in use' });
-  }
-
-  let updateQuery = 'UPDATE sq_user SET ';
   const updates: string[] = [];
   const params: any[] = [];
 
-  if (email !== null) { updates.push('email = ?'); params.push(email); }
-  if (fullName !== null) { updates.push('full_name = ?'); params.push(fullName); }
-  if (accountTypeId !== null) { updates.push('account_type_id = ?'); params.push(accountTypeId); }
-  if (groupIds !== null) { updates.push('group_ids = ?'); params.push(groupIds); }
-  if (data.password) {
+  const rawFullName = data.full_name !== undefined ? data.full_name : (data.fullName !== undefined ? data.fullName : rawBody.full_name);
+  if (rawFullName !== undefined) {
+    updates.push('full_name = ?');
+    params.push(String(rawFullName).trim());
+  }
+
+  const rawUsername = data.username !== undefined ? data.username : rawBody.username;
+  if (canManage && rawUsername) {
+    const username = String(rawUsername).trim();
+    const dupUser = await db.prepare('SELECT id FROM sq_user WHERE username = ? AND id != ? AND trash_status = 0').bind(username, id).first();
+    if (dupUser) return c.json({ status: 'failed', message: 'Tên đăng nhập đã được sử dụng' });
+    updates.push('username = ?');
+    params.push(username);
+  }
+
+  const rawEmail = data.email !== undefined ? data.email : rawBody.email;
+  if (rawEmail) {
+    const email = String(rawEmail).trim();
+    const dup = await db.prepare('SELECT id FROM sq_user WHERE email = ? AND id != ? AND trash_status = 0').bind(email, id).first();
+    if (dup) return c.json({ status: 'failed', message: 'Email đã được sử dụng bởi tài khoản khác' });
+    updates.push('email = ?');
+    params.push(email);
+  }
+
+  const rawAccountType = data.account_type_id !== undefined ? data.account_type_id : rawBody.account_type_id;
+  if (canManage && rawAccountType !== undefined && rawAccountType !== '') {
+    updates.push('account_type_id = ?');
+    params.push(Number(rawAccountType));
+  }
+
+  const rawPassword = data.passworde || data.password || rawBody.passworde || rawBody.password;
+  if (rawPassword && String(rawPassword).trim().length > 0) {
     updates.push('password = ?');
-    params.push(hashPassword(data.password));
+    params.push(hashPassword(String(rawPassword).trim()));
+  }
+
+  const rawGids = data['group_id[]'] || data.group_ids || rawBody['group_id[]'] || rawBody.group_ids;
+  if (canManage && rawGids !== undefined) {
+    const gids = Array.isArray(rawGids) ? rawGids.join(',') : String(rawGids);
+    updates.push('group_ids = ?');
+    params.push(gids);
   }
 
   if (updates.length > 0) {
-    updateQuery += updates.join(', ') + ' WHERE id = ?';
     params.push(id);
-    await db.prepare(updateQuery).bind(...params).run();
+    await db.prepare(`UPDATE sq_user SET ${updates.join(', ')} WHERE id = ?`).bind(...params).run();
   }
 
-  return c.json({ status: 'success', message: 'User updated successfully' });
-});
+  return c.json({ status: 'success', id, message: 'Cập nhật thông tin thành công' });
+};
 
-userRouter.post('/user/delete', async (c) => {
+userRouter.all('/user/edit', editUserHandler);
+userRouter.all('/user/update', editUserHandler);
+
+const removeUserHandler = async (c: any) => {
   const db = c.env.DB;
   const user = await requireAuth(c, db);
   if (!user) return c.json({ status: 'failed', message: 'Unauthorized' }, 401);
@@ -148,7 +174,10 @@ userRouter.post('/user/delete', async (c) => {
 
   await db.prepare('UPDATE sq_user SET trash_status = 1 WHERE id = ?').bind(id).run();
   return c.json({ status: 'success', message: 'User deleted' });
-});
+};
+
+userRouter.post('/user/remove', removeUserHandler);
+userRouter.post('/user/delete', removeUserHandler);
 
 userRouter.post('/user/getAccountTypeList', async (c) => {
   const db = c.env.DB;
@@ -182,7 +211,7 @@ userRouter.post('/user/addGroup', async (c) => {
   return c.json({ status: 'success', id: Number(res.meta?.last_row_id || 0), message: 'Thêm nhóm thành công' });
 });
 
-userRouter.post('/user/deleteGroup', async (c) => {
+const removeGroupHandler = async (c: any) => {
   const db = c.env.DB;
   const user = await requireAuth(c, db);
   if (!user) return c.json({ status: 'failed', message: 'Unauthorized' }, 401);
@@ -194,6 +223,30 @@ userRouter.post('/user/deleteGroup', async (c) => {
 
   await db.prepare('UPDATE sq_group SET trash_status = 1 WHERE id = ?').bind(id).run();
   return c.json({ status: 'success', message: 'Đã xóa nhóm' });
+};
+
+userRouter.post('/user/removeGroup', removeGroupHandler);
+userRouter.post('/user/deleteGroup', removeGroupHandler);
+
+userRouter.post('/user/dashboardStat', async (c) => {
+  const db = c.env.DB;
+  const user = await requireAuth(c, db);
+  if (!user) return c.json({ status: 'failed', message: 'Unauthorized' }, 401);
+
+  const totalUsers = (await db.prepare('SELECT count(*) as count FROM sq_user WHERE trash_status = 0').first<any>())?.count || 0;
+  const totalQuestions = (await db.prepare('SELECT count(*) as count FROM sq_question WHERE trash_status = 0').first<any>())?.count || 0;
+  const totalQuizzes = (await db.prepare('SELECT count(*) as count FROM sq_quiz WHERE trash_status = 0').first<any>())?.count || 0;
+  const totalResults = (await db.prepare('SELECT count(*) as count FROM sq_result WHERE trash_status = 0').first<any>())?.count || 0;
+
+  return c.json({
+    status: 'success',
+    data: {
+      total_users: totalUsers,
+      total_questions: totalQuestions,
+      total_quizzes: totalQuizzes,
+      total_results: totalResults,
+    },
+  });
 });
 
 userRouter.post('/user/changePassword', async (c) => {
@@ -219,14 +272,15 @@ userRouter.post('/user/changePassword', async (c) => {
   return c.json({ status: 'success', message: 'Đổi mật khẩu thành công' });
 });
 
-userRouter.post('/user/updateProfile', async (c) => {
+userRouter.all('/user/updateProfile', async (c) => {
   const db = c.env.DB;
   const user = await requireAuth(c, db);
   if (!user) return c.json({ status: 'failed', message: 'Unauthorized' }, 401);
 
-  const body = await getBody(c);
-  const fullName = String(body.full_name || '').trim();
-  const email = String(body.email || '').trim();
+  const rawBody = await getBody(c);
+  const data = parseBodyData(rawBody);
+  const fullName = String(data.full_name !== undefined ? data.full_name : (data.fullName !== undefined ? data.fullName : (rawBody.full_name || ''))).trim();
+  const email = String(data.email !== undefined ? data.email : (rawBody.email || '')).trim();
 
   if (!email) return c.json({ status: 'failed', message: 'Email không được để trống' });
 

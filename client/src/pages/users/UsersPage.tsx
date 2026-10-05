@@ -14,8 +14,10 @@ import type { User, Group, AccountType } from '../../types';
 import { Modal } from '../../components/Common/Modal';
 import { ConfirmModal } from '../../components/Common/ConfirmModal';
 import { Pagination } from '../../components/Common/Pagination';
+import { useAuth } from '../../context/AuthContext';
 
 export const UsersPage: React.FC = () => {
+  const { user: currentUser, updateUser } = useAuth();
   const [users, setUsers] = useState<User[]>([]);
   const [groups, setGroups] = useState<Group[]>([]);
   const [accountTypes, setAccountTypes] = useState<AccountType[]>([]);
@@ -137,6 +139,12 @@ export const UsersPage: React.FC = () => {
       const res = await userApi.editUser(selectedUser.id, formData);
       if (res.status === 'success') {
         setIsEditOpen(false);
+        if (currentUser && currentUser.id === selectedUser.id) {
+          updateUser({
+            full_name: formData.full_name,
+            email: formData.email,
+          });
+        }
         fetchUsers();
       } else {
         setFormError(res.message || 'Không thể cập nhật tài khoản');

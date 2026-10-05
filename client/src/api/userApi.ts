@@ -101,4 +101,14 @@ export const userApi = {
     const res = await apiClient.post<ApiResponse<any>>('user/dashboardStat', {});
     return res.data;
   },
+
+  updateProfile: async (data: { full_name: string; email: string }): Promise<ApiResponse> => {
+    const res = await apiClient.post<ApiResponse>('user/updateProfile', data);
+    return res.data;
+  },
+
+  changePassword: async (data: { old_password: string; new_password: string }): Promise<ApiResponse> => {
+    const res = await apiClient.post<ApiResponse>('user/changePassword', data);
+    return res.data;
+  },
 };
